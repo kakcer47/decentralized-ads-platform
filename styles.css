@@ -51,3 +51,7 @@ button:hover {
 #ads-list {
   margin-top: 20px;
 }
+
+#ads-list p {
+  margin: 5px 0;
+}

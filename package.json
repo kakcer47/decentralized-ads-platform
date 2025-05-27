@@ -1,0 +1,11 @@
+{
+  "name": "decentralized-ads-platform",
+  "version": "1.0.0",
+  "description": "A decentralized ads platform using IPFS, WebRTC, and a custom blockchain",
+  "main": "main.js",
+  "scripts": {
+    "start": "echo 'Open index.html in a browser'"
+  },
+  "author": "YourGitHubUsername",
+  "license": "MIT"
+}

@@ -28,7 +28,7 @@ class FractalNode {
       this.updatePostLimitUI();
       this.connectToSignalServer();
       await this.loadPosts();
-      this.setupEventListeners(); // Теперь это метод класса
+      this.setupEventListeners();
       this.startHeartbeat();
     } catch (error) {
       this.updateModalError(`Ошибка инициализации: ${error.message}`);
@@ -38,17 +38,31 @@ class FractalNode {
 
   async loadEmojiList() {
     try {
-      // Загружаем только из корня, так как /data/emoji.json возвращает 404
       const response = await fetch('/emoji.json');
       if (!response.ok) {
         throw new Error(`Не удалось загрузить emoji.json: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
-      // Фильтруем только эмодзи с status: 2
-      this.emojiList = Object.keys(data).filter(emoji => data[emoji].status === 2);
-      console.log('Загруженные эмодзи с status: 2:', this.emojiList);
+
+      // Подсчёт количества эмодзи для каждого status
+      const statusCounts = {};
+      Object.entries(data).forEach(([emoji, meta]) => {
+        const status = meta.status;
+        if (!statusCounts[status]) {
+          statusCounts[status] = 0;
+        }
+        statusCounts[status]++;
+      });
+
+      // Выводим количество эмодзи для каждого status
+      console.log('Количество эмодзи по status:', statusCounts);
+
+      // Выбираем status (временно оставим status: 2, но после анализа выберем другой)
+      const selectedStatus = 2; // Заменим после анализа
+      this.emojiList = Object.keys(data).filter(emoji => data[emoji].status === selectedStatus);
+      console.log(`Загруженные эмодзи с status: ${selectedStatus}:`, this.emojiList);
       if (this.emojiList.length < 12) {
-        throw new Error('Недостаточно эмодзи с status: 2 в emoji.json (нужно минимум 12)');
+        throw new Error(`Недостаточно эмодзи с status: ${selectedStatus} в emoji.json (нужно минимум 12)`);
       }
     } catch (error) {
       this.updateModalError(`Ошибка загрузки эмодзи: ${error.message}`);
@@ -84,19 +98,16 @@ class FractalNode {
       if (!this.emojiList) {
         throw new Error('Список эмодзи не загружен');
       }
-      // Валидация seed-фразы: 12 эмодзи, все из emoji.json с status: 2
       const emojis = seedPhrase.match(/[\p{Emoji}]/gu) || [];
       if (emojis.length !== 12 || emojis.some(e => !this.emojiList.includes(e))) {
-        throw new Error('Seed-фраза должна состоять из 12 эмодзи с status: 2 из emoji.json');
+        throw new Error('Seed-фраза должна состоять из 12 эмодзи из emoji.json');
       }
 
-      // Генерация ID из seed-фразы (SHA-256)
       const encoder = new TextEncoder();
       const seedData = encoder.encode(seedPhrase);
       const seedHash = await crypto.subtle.digest('SHA-256', seedData);
       const seedId = Array.from(new Uint8Array(seedHash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Проверка существующих ключей
       const existingKeys = await this.loadKeys(seedId);
       if (existingKeys) {
         this.keyPair = existingKeys;
@@ -109,7 +120,6 @@ class FractalNode {
         return;
       }
 
-      // Генерация новой пары ключей
       this.keyPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: 'P-256' },
         false,
@@ -133,7 +143,6 @@ class FractalNode {
       if (!this.emojiList) {
         throw new Error('Список эмодзи не загружен');
       }
-      // Генерация seed-фразы из 12 случайных эмодзи с status: 2
       const seedPhrase = Array.from({ length: 12 }, () => 
         this.emojiList[Math.floor(Math.random() * this.emojiList.length)]
       ).join('');
@@ -563,7 +572,6 @@ class FractalNode {
     }
   }
 
-  // Переносим setupEventListeners в класс
   setupEventListeners() {
     const modal = document.getElementById('auth-modal');
     const loginBtn = document.getElementById('login-btn');
@@ -629,7 +637,6 @@ class FractalNode {
     });
   }
 
-  // Переносим promptEdit в класс
   promptEdit(postId) {
     const newContent = prompt('Редактировать пост:', this.data_cache.get(postId)?.content || this.draftPosts.get(postId)?.content);
     if (newContent) {

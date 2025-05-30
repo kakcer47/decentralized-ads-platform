@@ -1,31 +1,43 @@
-// FractalNode реализация
 class FractalNode {
-  constructor(id, level = 2, capacity = 100, trust = 0) {
+  constructor(id, level = 0, capacity = 100, trust = 0) {
     this.id = id;
-    this.level = level; // 0-глобальный, 1-региональный, 2-локальный
+    this.level = level; // 0: user, 1: post, 2: evaluation
     this.capacity = capacity;
     this.trust = trust;
     this.connections = new Set();
-    this.data_cache = new Map();
+    this.data_cache = new Map(); // { postId: { content, signature, likes, dislikes, comments, author, level } }
     this.rtcConnections = new Map();
     this.db = null;
     this.keyPair = null;
     this.ws = null;
+    this.postCount = 0;
+    this.banUntil = 0;
+    this.draftPosts = new Map(); // Posts sent to draft
+    this.subNodes = new Map(); // For recursive hierarchy
   }
 
   async init() {
     await this.initDB();
     await this.generateKeyPair();
+    await this.loadPostCount();
+    this.updatePostLimitUI();
     this.connectToSignalServer();
     this.loadPosts();
+    this.setupEventListeners();
+    this.startHeartbeat();
   }
 
   async initDB() {
     return new Promise((resolve) => {
-      const request = indexedDB.open('FractalDB', 1);
+      const request = indexedDB.open('FractalDB', 2);
       request.onupgradeneeded = () => {
         const db = request.result;
-        db.createObjectStore('posts', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('posts')) {
+          db.createObjectStore('posts', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('meta')) {
+          db.createObjectStore('meta', { keyPath: 'key' });
+        }
       };
       request.onsuccess = () => {
         this.db = request.result;
@@ -40,10 +52,17 @@ class FractalNode {
       true,
       ['sign', 'verify']
     );
+    this.publicKeyStr = await this.exportPublicKey();
+  }
+
+  async exportPublicKey() {
+    const exported = await crypto.subtle.exportKey('raw', this.keyPair.publicKey);
+    return Array.from(new Uint8Array(exported)).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   connectToSignalServer() {
     this.ws = new WebSocket(`wss://server-by7n.onrender.com/${this.id}`);
+    this.ws.onopen = () => console.log('Connected to signal server');
     this.ws.onmessage = async (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'offer') {
@@ -54,10 +73,14 @@ class FractalNode {
         await this.handleCandidate(data);
       }
     };
+    this.ws.onclose = () => {
+      console.log('Signal server disconnected, reconnecting...');
+      setTimeout(() => this.connectToSignalServer(), 5000);
+    };
   }
 
   async connectToPeer(peerId) {
-    if (this.connections.has(peerId)) return;
+    if (this.connections.has(peerId) || peerId === this.id) return;
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     this.rtcConnections.set(peerId, pc);
 
@@ -66,6 +89,7 @@ class FractalNode {
     channel.onopen = () => {
       this.connections.add(peerId);
       console.log(`Connected to ${peerId}`);
+      this.syncPostsWithPeer(peerId);
     };
 
     pc.onicecandidate = ({ candidate }) => {
@@ -89,6 +113,7 @@ class FractalNode {
       channel.onopen = () => {
         this.connections.add(sender);
         console.log(`Connected to ${sender}`);
+        this.syncPostsWithPeer(sender);
       };
     };
 
@@ -119,26 +144,78 @@ class FractalNode {
   }
 
   async handleMessage(data) {
-    const { id, content, signature } = JSON.parse(data);
-    // Проверка подписи (упрощенно)
-    this.data_cache.set(id, { content, signature });
-    await this.savePost({ id, content, signature });
-    this.renderPosts();
+    const msg = JSON.parse(data);
+    if (msg.type === 'post') {
+      if (await this.verifySignature(msg.post)) {
+        this.data_cache.set(msg.post.id, msg.post);
+        await this.savePost(msg.post);
+        this.renderPosts();
+      }
+    } else if (msg.type === 'like' || msg.type === 'dislike') {
+      await this.handleEvaluation(msg);
+    } else if (msg.type === 'sync') {
+      await this.handleSync(msg);
+    }
   }
 
-  async postMessage(content) {
+  async verifySignature(post) {
+    try {
+      const { content, signature, author } = post;
+      const encoder = new TextEncoder();
+      const data = encoder.encode(content);
+      const sigBytes = new Uint8Array(signature.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      const publicKey = await crypto.subtle.importKey(
+        'raw',
+        new Uint8Array(author.match(/.{1,2}/g).map(byte => parseInt(byte, 16))),
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['verify']
+      );
+      return await crypto.subtle.verify(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        publicKey,
+        sigBytes,
+        data
+      );
+    } catch (e) {
+      console.error('Signature verification failed:', e);
+      return false;
+    }
+  }
+
+  async postMessage(content, isDraft = false) {
+    if (this.postCount >= 3) {
+      alert('Достигнут лимит в 3 поста.');
+      return;
+    }
+    if (Date.now() < this.banUntil) {
+      alert(`Вы забанены до ${new Date(this.banUntil).toLocaleTimeString()}`);
+      return;
+    }
+
     const id = Math.random().toString(36).slice(2);
     const signature = await this.signMessage(content);
-    const message = { id, content, signature };
-    this.data_cache.set(id, message);
-    await this.savePost(message);
-
-    for (const peerId of this.connections) {
-      const pc = this.rtcConnections.get(peerId);
-      const channel = pc.getSenders()[0]?.channel;
-      if (channel?.readyState === 'open') {
-        channel.send(JSON.stringify(message));
-      }
+    const post = {
+      id,
+      content,
+      signature,
+      author: this.publicKeyStr,
+      likes: 0,
+      dislikes: 0,
+      comments: [],
+      level: 1, // Post level
+      violationCount: 0,
+      isDraft
+    };
+    if (!isDraft) {
+      this.data_cache.set(id, post);
+      await this.savePost(post);
+      this.postCount++;
+      await this.savePostCount();
+      this.updatePostLimitUI();
+      this.broadcast({ type: 'post', post });
+    } else {
+      this.draftPosts.set(id, post);
     }
     this.renderPosts();
   }
@@ -164,53 +241,219 @@ class FractalNode {
     const tx = this.db.transaction(['posts'], 'readonly');
     const store = tx.objectStore('posts');
     const posts = await store.getAll();
-    posts.forEach(post => this.data_cache.set(post.id, post));
+    posts.forEach(post => {
+      if (!post.isDraft) {
+        this.data_cache.set(post.id, post);
+      } else {
+        this.draftPosts.set(post.id, post);
+      }
+    });
     this.renderPosts();
+  }
+
+  async savePostCount() {
+    const tx = this.db.transaction(['meta'], 'readwrite');
+    const store = tx.objectStore('meta');
+    await store.put({ key: 'postCount', value: this.postCount });
+  }
+
+  async loadPostCount() {
+    const tx = this.db.transaction(['meta'], 'readonly');
+    const store = tx.objectStore('meta');
+    const result = await store.get('postCount');
+    this.postCount = result?.value || 0;
+  }
+
+  updatePostLimitUI() {
+    document.getElementById('post-limit').textContent = `Осталось постов: ${3 - this.postCount}`;
+    document.getElementById('post-btn').disabled = this.postCount >= 3 || Date.now() < this.banUntil;
+  }
+
+  async handleEvaluation({ type, postId, sender }) {
+    const post = this.data_cache.get(postId);
+    if (!post) return;
+
+    if (type === 'like') {
+      post.likes++;
+      this.trust += 0.1; // Increase trust for quality content
+    } else if (type === 'dislike') {
+      post.dislikes++;
+      if (post.dislikes >= 5) {
+        post.violationCount++;
+        if (post.author === this.publicKeyStr) {
+          post.isDraft = true;
+          this.draftPosts.set(postId, { ...post, note: 'Нарушены правила' });
+          this.data_cache.delete(postId);
+          if (post.violationCount >= 3) {
+            this.banUntil = Date.now() + 60 * 1000; // 1-minute ban
+            this.updatePostLimitUI();
+          }
+        } else {
+          this.data_cache.delete(postId);
+        }
+        await this.savePost(post);
+      }
+    }
+    await this.savePost(post);
+    this.broadcast({ type: 'post', post });
+    this.renderPosts();
+  }
+
+  async editPost(postId, newContent) {
+    const post = this.draftPosts.get(postId) || this.data_cache.get(postId);
+    if (!post || post.author !== this.publicKeyStr) return;
+    post.content = newContent;
+    post.signature = await this.signMessage(newContent);
+    post.isDraft = false;
+    this.draftPosts.delete(postId);
+    this.data_cache.set(postId, post);
+    await this.savePost(post);
+    this.broadcast({ type: 'post', post });
+    this.renderPosts();
+  }
+
+  async syncPostsWithPeer(peerId) {
+    const posts = Array.from(this.data_cache.values());
+    for (const post of posts) {
+      if (!post.isDraft) {
+        this.sendToPeer(peerId, { type: 'sync', post });
+      }
+    }
+  }
+
+  async handleSync({ post }) {
+    if (await this.verifySignature(post) && !post.isDraft) {
+      this.data_cache.set(post.id, post);
+      await this.savePost(post);
+      this.renderPosts();
+    }
+  }
+
+  broadcast(message) {
+    for (const peerId of this.connections) {
+      this.sendToPeer(peerId, message);
+    }
+  }
+
+  sendToPeer(peerId, message) {
+    const pc = this.rtcConnections.get(peerId);
+    const channel = pc?.getSenders()?.[0]?.channel;
+    if (channel?.readyState === 'open') {
+      channel.send(JSON.stringify(message));
+    }
   }
 
   renderPosts() {
     const postsDiv = document.getElementById('posts');
     postsDiv.innerHTML = '';
-    for (const [id, { content, signature }] of this.data_cache) {
+    for (const [id, post] of this.data_cache) {
+      if (post.isDraft) continue;
       const postDiv = document.createElement('div');
       postDiv.className = 'post';
-      postDiv.textContent = content;
+      postDiv.innerHTML = `
+        <div class="post-header">Автор: ${post.author.slice(0, 8)}... (Уровень: ${post.level})</div>
+        <div>${post.content}</div>
+        <div class="post-actions">
+          <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
+          <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
+          <button onclick="promptEdit('${id}')">Редактировать</button>
+        </div>
+      `;
       postsDiv.appendChild(postDiv);
+    }
+    for (const [id, post] of this.draftPosts) {
+      if (post.author === this.publicKeyStr) {
+        const postDiv = document.createElement('div');
+        postDiv.className = 'post';
+        postDiv.innerHTML = `
+          <div class="post-header">Черновик: ${post.note || ''}</div>
+          <div>${post.content}</div>
+          <div class="post-actions">
+            <button onclick="promptEdit('${id}')">Редактировать</button>
+          </div>
+        `;
+        postsDiv.appendChild(postDiv);
+      }
+    }
+  }
+
+  startHeartbeat() {
+    setInterval(() => {
+      if (this.connections.size < 3) { // Adaptive topology: connect to up to 3 peers
+        const peerId = `peer-${Math.random().toString(36).slice(2)}`;
+        this.connectToPeer(peerId);
+      }
+      this.optimizeConnections();
+    }, 10000);
+  }
+
+  optimizeConnections() {
+    // Adaptive topology: prioritize high-trust nodes
+    const sortedPeers = Array.from(this.connections).sort((a, b) => {
+      const trustA = this.rtcConnections.get(a)?.trust || 0;
+      const trustB = this.rtcConnections.get(b)?.trust || 0;
+      return trustB - trustA;
+    });
+    if (sortedPeers.length > 3) {
+      const toRemove = sortedPeers.slice(3);
+      toRemove.forEach(peerId => {
+        this.rtcConnections.get(peerId)?.close();
+        this.rtcConnections.delete(peerId);
+        this.connections.delete(peerId);
+      });
     }
   }
 }
 
-// Инициализация узла
+// Global promptEdit function for editing posts
+function promptEdit(postId) {
+  const newContent = prompt('Редактировать пост:', node.data_cache.get(postId)?.content || node.draftPosts.get(postId)?.content);
+  if (newContent) {
+    node.editPost(postId, newContent);
+  }
+}
+
+// Initialize node
 const node = new FractalNode(Math.random().toString(36).slice(2));
 node.init();
 
-// UI логика
-document.getElementById('post-btn').addEventListener('click', async () => {
-  const content = document.getElementById('post-input').value;
-  if (content) {
-    await node.postMessage(content);
-    document.getElementById('post-input').value = '';
-  }
-});
-
-document.getElementById('search').addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase();
-  const postsDiv = document.getElementById('posts');
-  postsDiv.innerHTML = '';
-  for (const [id, { content, signature }] of node.data_cache) {
-    if (content.toLowerCase().includes(query)) {
-      const postDiv = document.createElement('div');
-      postDiv.className = 'post';
-      postDiv.textContent = content;
-      postsDiv.appendChild(postDiv);
+// UI logic
+function setupEventListeners() {
+  document.getElementById('post-btn').addEventListener('click', async () => {
+    const content = document.getElementById('post-input').value;
+    if (content) {
+      await node.postMessage(content);
+      document.getElementById('post-input').value = '';
     }
-  }
-});
+  });
 
-document.getElementById('login').addEventListener('click', () => {
-  // Упрощенная авторизация (seed-фраза может быть добавлена позже)
-  alert('Вход выполнен (упрощенно)');
-});
+  document.getElementById('search').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    const postsDiv = document.getElementById('posts');
+    postsDiv.innerHTML = '';
+    for (const [id, post] of node.data_cache) {
+      if (post.isDraft) continue;
+      if (post.content.toLowerCase().includes(query)) {
+        const postDiv = document.createElement('div');
+        postDiv.className = 'post';
+        postDiv.innerHTML = `
+          <div class="post-header">Автор: ${post.author.slice(0, 8)}... (Уровень: ${post.level})</div>
+          <div>${post.content}</div>
+          <div class="post-actions">
+            <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
+            <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
+            <button onclick="promptEdit('${id}')">Редактировать</button>
+          </div>
+        `;
+        postsDiv.appendChild(postDiv);
+      }
+    }
+  });
 
-// Подключение к случайному узлу (для теста)
-setTimeout(() => node.connectToPeer('test-peer-id'), 1000);
+  document.getElementById('login').addEventListener('click', () => {
+    alert('Вход выполнен (упрощенно). Используется случайный ID.');
+  });
+}
+
+// Expose node for button onclick handlers
+window.node = node;

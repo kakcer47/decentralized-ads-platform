@@ -1,43 +1,1360 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fractal Ads Platform</title>
-    <meta name="description" content="Децентрализованная платформа объявлений с фрактальной архитектурой" />
-    <meta name="theme-color" content="#6366f1" />
-    <link rel="manifest" href="/manifest.json" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DecentralNet - Децентрализованная социальная сеть</title>
+    <link rel="manifest" href="data:application/json;charset=utf-8,{&quot;name&quot;:&quot;DecentralNet&quot;,&quot;short_name&quot;:&quot;DNet&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;theme_color&quot;:&quot;#667eea&quot;,&quot;background_color&quot;:&quot;#1a1a2e&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'&gt;&lt;circle cx='256' cy='256' r='200' fill='%23667eea'/&gt;&lt;/svg&gt;&quot;,&quot;sizes&quot;:&quot;512x512&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}">
     <style>
-      body {
-        background-color: #f9fafb;
-        color: #111827;
-        font-family: Arial, sans-serif;
-        padding: 20px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>FriendsHub</h1>
-    <div id="friends-hub-text" class="p-4"></div> <!-- Область для текста -->
-    <script>
-      // Функция для загрузки текста из файла
-      async function loadText() {
-        try {
-          const response = await fetch('FriendsHub.txt');
-          if (!response.ok) {
-            throw new Error('Ошибка при загрузке файла: ' + response.status);
-          }
-          const text = await response.text();
-          document.getElementById('friends-hub-text').innerText = text;
-        } catch (error) {
-          console.error(error);
-          document.getElementById('friends-hub-text').innerText = 'Не удалось загрузить текст.';
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-      }
 
-      // Загружаем текст при загрузке страницы
-      window.onload = loadText;
-    </script>
-  </body>
-</html>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            color: #e6e8f0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.hidden {
+            transform: translateX(-100%);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .user-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .network-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: #a0a8b8;
+            margin-top: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-item {
+            margin-bottom: 8px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #a0a8b8;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+        }
+
+        .nav-icon {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 20px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.full-width {
+            margin-left: 0;
+        }
+
+        .header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #e6e8f0;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        .search-bar {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 45px 12px 20px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e6e8f0;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+        }
+
+        .search-input::placeholder {
+            color: #a0a8b8;
+        }
+
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.5);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e6e8f0;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Post Creation */
+        .post-creator {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .post-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 20px;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e6e8f0;
+            font-family: inherit;
+            font-size: 16px;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        .post-textarea::placeholder {
+            color: #a0a8b8;
+        }
+
+        .post-textarea:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.5);
+        }
+
+        .post-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .post-options {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .tag-input {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e6e8f0;
+            font-size: 14px;
+            min-width: 150px;
+        }
+
+        .tag-input::placeholder {
+            color: #a0a8b8;
+        }
+
+        .ttl-select {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e6e8f0;
+            font-size: 14px;
+        }
+
+        /* Feed */
+        .feed {
+            max-width: 800px;
+        }
+
+        .post {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .post:hover {
+            transform: translateY(-2px);
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .post-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .post-author {
+            flex: 1;
+        }
+
+        .author-name {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .post-time {
+            font-size: 12px;
+            color: #a0a8b8;
+        }
+
+        .post-content {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .post-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tag {
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .post-actions-bar {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: #a0a8b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            transition: color 0.2s ease;
+        }
+
+        .action-btn:hover {
+            color: #667eea;
+        }
+
+        .action-btn.liked {
+            color: #f43f5e;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .qr-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .qr-code {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+
+        .key-display {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin: 15px 0;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            margin: 10px 0;
+            transition: background 0.2s ease;
+        }
+
+        .file-label:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .network-stats {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            text-align: center;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #a0a8b8;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .mobile-toggle {
+                display: block;
+            }
+
+            .header {
+                justify-content: flex-start;
+            }
+
+            .search-bar {
+                order: 3;
+                flex-basis: 100%;
+            }
+
+            .post-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .post-options {
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                <h1>DecentralNet</h1>
+            </div>
+            
+            <div class="user-info" id="userInfo">
+                <div class="user-avatar" id="userAvatar">?</div>
+                <div id="userName">Анонимный пользователь</div>
+                <div class="network-status">
+                    <div class="status-dot"></div>
+                    <span id="networkStatus">Подключен к сети</span>
+                </div>
+            </div>
+
+            <nav>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active" data-view="feed">
+                            <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                            </svg>
+                            Лента
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="rooms">
+                            <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+                            </svg>
+                            Комнаты
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="profile">
+                            <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/>
+                            </svg>
+                            Профиль
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link" data-view="settings">
+                            <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"/>
+                            </svg>
+                            Настройки
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="network-stats">
+                <h3 style="margin-bottom: 15px; font-size: 16px;">Статистика сети</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="activePeers">0</div>
+                        <div class="stat-label">Участников</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalPosts">0</div>
+                        <div class="stat-label">Постов</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="syncStatus">OK</div>
+                        <div class="stat-label">Синхр.</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <header class="header">
+                <button class="mobile-toggle" id="mobileToggle">☰</button>
+                
+                <div class="search-bar">
+                    <input type="text" class="search-input" placeholder="Поиск по постам, тегам, авторам..." id="searchInput">
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" id="syncBtn">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"/>
+                        </svg>
+                        Синхронизация
+                    </button>
+                    <button class="btn btn-primary" id="loginBtn">Вход/Регистрация</button>
+                </div>
+            </header>
+
+            <!-- Post Creator -->
+            <div class="post-creator" id="postCreator" style="display: none;">
+                <textarea class="post-textarea" placeholder="Что у вас нового? Поделитесь своими мыслями с децентрализованной сетью..." id="postContent"></textarea>
+                <div class="post-actions">
+                    <div class="post-options">
+                        <input type="text" class="tag-input" placeholder="Теги (через запятую)" id="postTags">
+                        <select class="ttl-select" id="postTTL">
+                            <option value="0">Постоянный пост</option>
+                            <option value="3600">1 час</option>
+                            <option value="86400">1 день</option>
+                            <option value="604800">1 неделя</option>
+                            <option value="2592000">1 месяц</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="publishBtn">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+                        </svg>
+                        Опубликовать
+                    </button>
+                </div>
+            </div>
+
+            <!-- Feed -->
+            <div class="feed" id="feed">
+                <!-- Пример поста -->
+                <div class="post">
+                    <div class="post-header">
+                        <div class="post-avatar">DM</div>
+                        <div class="post-author">
+                            <div class="author-name">Demo User</div>
+                            <div class="post-time">5 минут назад</div>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        Добро пожаловать в DecentralNet! 🚀 Это децентрализованная социальная сеть, где ваши данные остаются у вас, а общение происходит напрямую между участниками. Никаких серверов, никакой цензуры - только свободное общение!
+                    </div>
+                    <div class="post-tags">
+                        <span class="tag">децентрализация</span>
+                        <span class="tag">приватность</span>
+                        <span class="tag">p2p</span>
+                    </div>
+                    <div class="post-actions-bar">
+                        <button class="action-btn">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/>
+                            </svg>
+                            12
+                        </button>
+                        <button class="action-btn">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z"/>
+                            </svg>
+                            3
+                        </button>
+                        <button class="action-btn">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
+                            </svg>
+                            Поделиться
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Вход в DecentralNet</h2>
+                <p style="color: #a0a8b8; margin-bottom: 20px;">
+                    Выберите способ входа в децентрализованную сеть
+                </p>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <button class="btn btn-primary" id="generateKeysBtn">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z"/>
+                    </svg>
+                    Создать новый аккаунт
+                </button>
+                
+                <button class="btn btn-secondary" id="importKeyBtn">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/>
+                    </svg>
+                    Импортировать ключ
+                </button>
+                
+                <button class="btn btn-secondary" id="scanQRBtn">
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 000 2H5v2a1 1 0 01-2 0V4zM3 16a1 1 0 001 1h3a1 1 0 100-2H5v-2a1 1 0 00-2 0v3zM16 3a1 1 0 00-1 1v3a1 1 0 002 0V5h2a1 1 0 100-2h-3zM16 16a1 1 0 001-1v-3a1 1 0 10-2 0v2h-2a1 1 0 100 2h3z"/>
+                    </svg>
+                    Сканировать QR-код
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Export Modal -->
+    <div class="modal" id="keyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Ваши ключи доступа</h2>
+                <p style="color: #a0a8b8; margin-bottom: 20px;">
+                    Сохраните эти данные для входа с других устройств
+                </p>
+            </div>
+            
+            <div class="qr-container">
+                <div class="qr-code" id="qrCode">
+                    <!-- QR код будет здесь -->
+                </div>
+                <p style="font-size: 14px; color: #a0a8b8;">QR-код для быстрого входа</p>
+            </div>
+            
+            <div class="key-display" id="privateKeyDisplay">
+                Приватный ключ будет здесь...
+            </div>
+            
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="copyKeyBtn">Копировать ключ</button>
+                <button class="btn btn-secondary" id="downloadKeyBtn">Скачать файл</button>
+                <button class="btn btn-secondary" id="closeKeyModalBtn">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Key Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Импорт ключей</h2>
+                <p style="color: #a0a8b8; margin-bottom: 20px;">
+                    Вставьте ваш приватный ключ или загрузите файл
+                </p>
+            </div>
+            
+            <textarea class="post-textarea" placeholder="Вставьте ваш приватный ключ здесь..." id="importKeyInput" style="min-height: 80px; margin-bottom: 15px;"></textarea>
+            
+            <input type="file" id="keyFileInput" class="file-input" accept=".txt,.key,.json">
+            <label for="keyFileInput" class="file-label">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="margin-right: 8px;">
+                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L4.414 9H17a1 1 0 100-2H4.414l1.879-1.879z"/>
+                </svg>
+                Или выберите файл с ключом
+            </label>
+            
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
+                <button class="btn btn-primary" id="importConfirmBtn">Импортировать</button>
+                <button class="btn btn-secondary" id="closeImportModalBtn">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Application State
+        let currentUser = null;
+        let posts = [];
+        let peers = new Map();
+        let keyPair = null;
+        let db = null;
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initDB();
+            await loadUserData();
+            initEventListeners();
+            updateUI();
+            
+            // Start P2P networking
+            if (currentUser) {
+                startP2PNetwork();
+            }
+            
+            // Register service worker for PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('data:text/javascript,');
+            }
+        });
+
+        // IndexedDB Operations
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('DecentralNetDB', 1);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve(db);
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    
+                    // User store
+                    if (!db.objectStoreNames.contains('users')) {
+                        db.createObjectStore('users', { keyPath: 'id' });
+                    }
+                    
+                    // Posts store
+                    if (!db.objectStoreNames.contains('posts')) {
+                        const postStore = db.createObjectStore('posts', { keyPath: 'id' });
+                        postStore.createIndex('timestamp', 'timestamp');
+                        postStore.createIndex('author', 'author');
+                        postStore.createIndex('tags', 'tags', { multiEntry: true });
+                    }
+                    
+                    // Peers store
+                    if (!db.objectStoreNames.contains('peers')) {
+                        db.createObjectStore('peers', { keyPath: 'id' });
+                    }
+                };
+            });
+        }
+
+        async function saveData(storeName, data) {
+            const transaction = db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            return store.put(data);
+        }
+
+        async function loadData(storeName, key = null) {
+            const transaction = db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            
+            if (key) {
+                return store.get(key);
+            } else {
+                return store.getAll();
+            }
+        }
+
+        // Cryptography
+        async function generateKeyPair() {
+            keyPair = await window.crypto.subtle.generateKey(
+                {
+                    name: 'ECDSA',
+                    namedCurve: 'P-256'
+                },
+                true,
+                ['sign', 'verify']
+            );
+            
+            const publicKey = await exportKey(keyPair.publicKey);
+            const privateKey = await exportKey(keyPair.privateKey);
+            
+            currentUser = {
+                id: await hashString(publicKey),
+                publicKey: publicKey,
+                privateKey: privateKey,
+                name: generateUsername(),
+                avatar: generateAvatar(),
+                createdAt: Date.now()
+            };
+            
+            await saveData('users', currentUser);
+            return currentUser;
+        }
+
+        async function importKeyPair(privateKeyString) {
+            try {
+                const privateKey = await importKey(privateKeyString, 'private');
+                const publicKey = await importKey(privateKeyString, 'public');
+                
+                keyPair = { privateKey, publicKey };
+                
+                const publicKeyString = await exportKey(publicKey);
+                currentUser = {
+                    id: await hashString(publicKeyString),
+                    publicKey: publicKeyString,
+                    privateKey: privateKeyString,
+                    name: generateUsername(),
+                    avatar: generateAvatar(),
+                    createdAt: Date.now()
+                };
+                
+                await saveData('users', currentUser);
+                return currentUser;
+            } catch (error) {
+                throw new Error('Неверный формат ключа');
+            }
+        }
+
+        async function exportKey(key) {
+            const exported = await window.crypto.subtle.exportKey('jwk', key);
+            return JSON.stringify(exported);
+        }
+
+        async function importKey(keyString, type) {
+            const keyData = JSON.parse(keyString);
+            return await window.crypto.subtle.importKey(
+                'jwk',
+                keyData,
+                { name: 'ECDSA', namedCurve: 'P-256' },
+                true,
+                type === 'private' ? ['sign'] : ['verify']
+            );
+        }
+
+        async function signData(data) {
+            const encoder = new TextEncoder();
+            const signature = await window.crypto.subtle.sign(
+                { name: 'ECDSA', hash: 'SHA-256' },
+                keyPair.privateKey,
+                encoder.encode(data)
+            );
+            return Array.from(new Uint8Array(signature));
+        }
+
+        async function verifySignature(data, signature, publicKey) {
+            try {
+                const key = await importKey(publicKey, 'public');
+                const encoder = new TextEncoder();
+                return await window.crypto.subtle.verify(
+                    { name: 'ECDSA', hash: 'SHA-256' },
+                    key,
+                    new Uint8Array(signature),
+                    encoder.encode(data)
+                );
+            } catch {
+                return false;
+            }
+        }
+
+        async function hashString(str) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(str);
+            const hash = await window.crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hash))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('').substring(0, 12);
+        }
+
+        // Utilities
+        function generateUsername() {
+            const adjectives = ['Быстрый', 'Умный', 'Смелый', 'Яркий', 'Тихий', 'Добрый', 'Сильный'];
+            const nouns = ['Лис', 'Волк', 'Орел', 'Дракон', 'Тигр', 'Медведь', 'Сокол'];
+            return adjectives[Math.floor(Math.random() * adjectives.length)] + 
+                   nouns[Math.floor(Math.random() * nouns.length)] + 
+                   Math.floor(Math.random() * 100);
+        }
+
+        function generateAvatar() {
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        function generateQRCode(data) {
+            // Простая генерация QR-кода (в реальном приложении используйте библиотеку)
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.height = 200;
+            
+            // Простой паттерн для демонстрации
+            ctx.fillStyle = '#000';
+            for(let i = 0; i < 10; i++) {
+                for(let j = 0; j < 10; j++) {
+                    if ((i + j + data.length) % 3 === 0) {
+                        ctx.fillRect(i * 20, j * 20, 20, 20);
+                    }
+                }
+            }
+            
+            return canvas;
+        }
+
+        function formatTime(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            
+            if (diff < 60000) return 'только что';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' мин назад';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' ч назад';
+            return Math.floor(diff / 86400000) + ' дн назад';
+        }
+
+        // User Management
+        async function loadUserData() {
+            const userData = await loadData('users');
+            if (userData.result && userData.result.length > 0) {
+                currentUser = userData.result[0];
+                try {
+                    keyPair = {
+                        privateKey: await importKey(currentUser.privateKey, 'private'),
+                        publicKey: await importKey(currentUser.publicKey, 'public')
+                    };
+                } catch (error) {
+                    console.error('Ошибка загрузки ключей:', error);
+                }
+            }
+            
+            const postsData = await loadData('posts');
+            if (postsData.result) {
+                posts = postsData.result.filter(post => {
+                    // Фильтруем истекшие временные посты
+                    if (post.ttl > 0 && Date.now() - post.timestamp > post.ttl * 1000) {
+                        return false;
+                    }
+                    return true;
+                });
+                
+                // Сортируем по времени
+                posts.sort((a, b) => b.timestamp - a.timestamp);
+            }
+        }
+
+        // Post Management
+        async function createPost(content, tags = [], ttl = 0) {
+            if (!currentUser || !keyPair) {
+                throw new Error('Необходимо войти в систему');
+            }
+            
+            const post = {
+                id: await hashString(content + Date.now() + Math.random()),
+                content: content.trim(),
+                author: currentUser.id,
+                authorName: currentUser.name,
+                authorAvatar: currentUser.avatar,
+                tags: tags.filter(tag => tag.trim().length > 0),
+                timestamp: Date.now(),
+                ttl: ttl,
+                likes: 0,
+                comments: 0,
+                signature: null
+            };
+            
+            // Подписываем пост
+            const postData = JSON.stringify({
+                content: post.content,
+                author: post.author,
+                timestamp: post.timestamp
+            });
+            post.signature = await signData(postData);
+            
+            // Сохраняем локально
+            await saveData('posts', post);
+            posts.unshift(post);
+            
+            // Отправляем всем пирам
+            broadcastToNetwork('new_post', post);
+            
+            updateStats();
+            renderFeed();
+            
+            return post;
+        }
+
+        async function receivePost(post) {
+            // Проверяем подпись
+            const postData = JSON.stringify({
+                content: post.content,
+                author: post.author,
+                timestamp: post.timestamp
+            });
+            
+            // В реальном приложении здесь была бы проверка подписи
+            // const isValid = await verifySignature(postData, post.signature, authorPublicKey);
+            
+            // Проверяем, что пост еще не истек
+            if (post.ttl > 0 && Date.now() - post.timestamp > post.ttl * 1000) {
+                return;
+            }
+            
+            // Проверяем, что поста еще нет
+            if (!posts.find(p => p.id === post.id)) {
+                await saveData('posts', post);
+                posts.unshift(post);
+                posts.sort((a, b) => b.timestamp - a.timestamp);
+                
+                updateStats();
+                renderFeed();
+            }
+        }
+
+        // UI Management
+        function updateUI() {
+            const loginBtn = document.getElementById('loginBtn');
+            const postCreator = document.getElementById('postCreator');
+            const userInfo = document.getElementById('userInfo');
+            const userAvatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+            
+            if (currentUser) {
+                loginBtn.textContent = 'Экспорт ключей';
+                postCreator.style.display = 'block';
+                
+                // Обновляем информацию о пользователе
+                userAvatar.textContent = currentUser.name.substring(0, 2).toUpperCase();
+                userAvatar.style.background = currentUser.avatar;
+                userName.textContent = currentUser.name;
+                
+            } else {
+                loginBtn.textContent = 'Вход/Регистрация';
+                postCreator.style.display = 'none';
+                
+                userAvatar.textContent = '?';
+                userName.textContent = 'Анонимный пользователь';
+            }
+            
+            updateStats();
+            renderFeed();
+        }
+
+        function updateStats() {
+            document.getElementById('activePeers').textContent = peers.size;
+            document.getElementById('totalPosts').textContent = posts.length;
+            document.getElementById('syncStatus').textContent = peers.size > 0 ? 'OK' : 'СОЛО';
+        }
+
+        function renderFeed() {
+            const feed = document.getElementById('feed');
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filteredPosts = posts;
+            
+            // Фильтрация по поиску
+            if (searchQuery) {
+                filteredPosts = posts.filter(post => 
+                    post.content.toLowerCase().includes(searchQuery) ||
+                    post.authorName.toLowerCase().includes(searchQuery) ||
+                    post.tags.some(tag => tag.toLowerCase().includes(searchQuery))
+                );
+            }
+            
+            feed.innerHTML = '';
+            
+            if (filteredPosts.length === 0) {
+                feed.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #a0a8b8;">
+                        <svg width="64" height="64" fill="currentColor" viewBox="0 0 20 20" style="margin-bottom: 20px; opacity: 0.5;">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"/>
+                        </svg>
+                        <h3>Постов пока нет</h3>
+                        <p>Станьте первым, кто поделится чем-то интересным!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            filteredPosts.forEach(post => {
+                const postElement = createPostElement(post);
+                feed.appendChild(postElement);
+            });
+        }
+
+        function createPostElement(post) {
+            const postDiv = document.createElement('div');
+            postDiv.className = 'post';
+            
+            const timeLeft = post.ttl > 0 ? Math.max(0, post.ttl - Math.floor((Date.now() - post.timestamp) / 1000)) : 0;
+            const ttlDisplay = timeLeft > 0 ? ` • Исчезнет через ${Math.floor(timeLeft / 3600)}ч ${Math.floor((timeLeft % 3600) / 60)}м` : '';
+            
+            postDiv.innerHTML = `
+                <div class="post-header">
+                    <div class="post-avatar" style="background: ${post.authorAvatar || '#667eea'}">
+                        ${post.authorName ? post.authorName.substring(0, 2).toUpperCase() : 'AN'}
+                    </div>
+                    <div class="post-author">
+                        <div class="author-name">${post.authorName || 'Анонимный'}</div>
+                        <div class="post-time">${formatTime(post.timestamp)}${ttlDisplay}</div>
+                    </div>
+                </div>
+                <div class="post-content">${post.content}</div>
+                ${post.tags.length > 0 ? `
+                    <div class="post-tags">
+                        ${post.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    </div>
+                ` : ''}
+                <div class="post-actions-bar">
+                    <button class="action-btn like-btn" data-post-id="${post.id}">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/>
+                        </svg>
+                        ${post.likes || 0}
+                    </button>
+                    <button class="action-btn">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z"/>
+                        </svg>
+                        ${post.comments || 0}
+                    </button>
+                    <button class="action-btn share-btn" data-post-id="${post.id}">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/>
+                        </svg>
+                        Поделиться
+                    </button>
+                </div>
+            `;
+            
+            return postDiv;
+        }
+
+        // P2P Networking (симуляция)
+        function startP2PNetwork() {
+            // В реальном приложении здесь был бы WebRTC код
+            console.log('Запуск P2P сети...');
+            
+            // Симулируем подключение пиров
+            setTimeout(() => {
+                simulatePeerConnection('peer1');
+                simulatePeerConnection('peer2');
+            }, 2000);
+        }
+
+        function simulatePeerConnection(peerId) {
+            peers.set(peerId, {
+                id: peerId,
+                connected: true,
+                lastSeen: Date.now()
+            });
+            
+            updateStats();
+            
+            // Симулируем получение случайных постов
+            if (Math.random() > 0.7) {
+                setTimeout(() => {
+                    simulateReceivePost();
+                }, Math.random() * 10000);
+            }
+        }
+
+        function simulateReceivePost() {
+            const demoContents = [
+                'Децентрализация - это будущее интернета! 🌐',
+                'Приватность данных должна быть правом каждого человека.',
+                'P2P сети открывают невероятные возможности для свободного общения.',
+                'Блокчейн технологии меняют мир к лучшему.',
+                'Важно помнить о цифровой безопасности в наше время.'
+            ];
+            
+            const demoTags = [
+                ['технологии', 'блокчейн'],
+                ['приватность', 'безопасность'],
+                ['p2p', 'децентрализация'],
+                ['криптография', 'шифрование'],
+                ['интернет', 'свобода']
+            ];
+            
+            const content = demoContents[Math.floor(Math.random() * demoContents.length)];
+            const tags = demoTags[Math.floor(Math.random() * demoTags.length)];
+            
+            const demoPost = {
+                id: 'demo_' + Date.now() + '_' + Math.random(),
+                content: content,
+                author: 'demo_user_' + Math.floor(Math.random() * 100),
+                authorName: generateUsername(),
+                authorAvatar: generateAvatar(),
+                tags: tags,
+                timestamp: Date.now() - Math.random() * 3600000,
+                ttl: 0,
+                likes: Math.floor(Math.random() * 10),
+                comments: Math.floor(Math.random() * 5),
+                signature: []
+            };
+            
+            receivePost(demoPost);
+        }
+
+        function broadcastToNetwork(type, data) {
+            // В реальном приложении здесь была бы отправка через WebRTC
+            console.log('Broadcast:', type, data);
+            peers.forEach((peer, peerId) => {
+                console.log(`Отправка ${type} пиру ${peerId}`);
+            });
+        }
+
+        // Event Listeners
+        function initEventListeners() {
+            // Mobile menu toggle
+            document.getElementById('mobileToggle').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.toggle('active');
+            });
+
+            // Navigation
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    
+                    const view = link.dataset.view;
+                    console.log('Переключение на:', view);
+                });
+            });
+
+            // Login/Export button
+            document.getElementById('loginBtn').addEventListener('click', () => {
+                if (currentUser) {
+                    showKeyModal();
+                } else {
+                    showLoginModal();
+                }
+            });
+
+            // Search
+            document.getElementById('searchInput').addEventListener('input', () => {
+                renderFeed();
+            });
+
+            // Sync button
+            document.getElementById('syncBtn').addEventListener('click', () => {
+                console.log('Принудительная синхронизация...');
+                // Simulate sync
+                document.getElementById('syncBtn').innerHTML = `
+                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20" style="animation: spin 1s linear infinite;">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"/>
+                    </svg>
+                    Синхронизация
+                `;
+                
+                setTimeout(() => {
+                    document.getElementById('syncBtn').innerHTML = `
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002

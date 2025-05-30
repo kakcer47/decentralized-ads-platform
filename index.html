@@ -9,7 +9,6 @@
   <header>
     <input type="text" id="search" placeholder="Поиск постов...">
     <div id="auth">
-      <input type="text" id="seed-input" placeholder="Введите seed-фразу">
       <button id="login-btn">Войти</button>
       <span id="auth-status"></span>
     </div>
@@ -20,6 +19,27 @@
     <button id="post-btn" disabled>Опубликовать</button>
     <div id="post-limit">Осталось постов: 3</div>
   </main>
+
+  <!-- Модальное окно -->
+  <div id="auth-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Авторизация</h2>
+      <div id="create-account">
+        <h3>Создать аккаунт</h3>
+        <button id="generate-seed">Сгенерировать seed-фразу</button>
+        <textarea id="new-seed" readonly></textarea>
+      </div>
+      <div id="login-account">
+        <h3>Войти</h3>
+        <input type="text" id="seed-input" placeholder="Введите seed-фразу">
+        <button id="login-submit">Войти</button>
+      </div>
+      <div id="modal-error" style="color: red;"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bip39@3.1.0/dist/bip39.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

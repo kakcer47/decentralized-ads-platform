@@ -8,11 +8,15 @@
 <body>
   <header>
     <input type="text" id="search" placeholder="Поиск постов...">
-    <button id="login">Вход</button>
+    <div id="auth">
+      <input type="text" id="seed-input" placeholder="Введите seed-фразу">
+      <button id="login-btn">Войти</button>
+      <span id="auth-status"></span>
+    </div>
   </header>
   <main>
     <div id="posts"></div>
-    <textarea id="post-input" placeholder="Напишите пост..."></textarea>
+    <textarea id="post-input" placeholder="Напишите пост..." disabled></textarea>
     <button id="post-btn" disabled>Опубликовать</button>
     <div id="post-limit">Осталось постов: 3</div>
   </main>

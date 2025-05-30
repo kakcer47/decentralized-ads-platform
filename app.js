@@ -10,23 +10,45 @@ class FractalNode {
     this.db = null;
     this.keyPair = null;
     this.publicKeyStr = null;
-    this.publicKeyCache = new Map(); // Кэш публичных ключей
+    this.publicKeyCache = new Map();
     this.ws = null;
     this.postCount = 0;
     this.banUntil = 0;
     this.draftPosts = new Map();
     this.subNodes = new Map();
     this.isAuthenticated = false;
+    this.emojiList = null;
   }
 
   async init() {
-    await this.initDB();
-    await this.loadPostCount();
-    this.updatePostLimitUI();
-    this.connectToSignalServer();
-    this.loadPosts();
-    this.setupEventListeners();
-    this.startHeartbeat();
+    try {
+      await this.loadEmojiList();
+      await this.initDB();
+      await this.loadPostCount();
+      this.updatePostLimitUI();
+      this.connectToSignalServer();
+      this.loadPosts();
+      this.setupEventListeners();
+      this.startHeartbeat();
+    } catch (error) {
+      this.updateModalError(`Ошибка инициализации: ${error.message}`);
+    }
+  }
+
+  async loadEmojiList() {
+    try {
+      const response = await fetch('/data/emoji.json');
+      if (!response.ok) {
+        throw new Error('Не удалось загрузить emoji.json');
+      }
+      this.emojiList = Object.keys(await response.json());
+      if (this.emojiList.length < 12) {
+        throw new Error('Недостаточно эмодзи в emoji.json');
+      }
+    } catch (error) {
+      this.updateModalError(`Ошибка загрузки эмодзи: ${error.message}`);
+      throw error;
+    }
   }
 
   async initDB() {
@@ -53,9 +75,13 @@ class FractalNode {
 
   async login(seedPhrase) {
     try {
-      // Валидация seed-фразы с помощью BIP-39
-      if (!bip39.validateMnemonic(seedPhrase)) {
-        throw new Error('Некорректная seed-фраза');
+      if (!this.emojiList) {
+        throw new Error('Список эмодзи не загружен');
+      }
+      // Валидация seed-фразы: 12 эмодзи, все из emoji.json
+      const emojis = seedPhrase.match(/[\p{Emoji}]/gu) || [];
+      if (emojis.length !== 12 || emojis.some(e => !this.emojiList.includes(e))) {
+        throw new Error('Seed-фраза должна состоять из 12 эмодзи из emoji.json');
       }
 
       // Генерация ID из seed-фразы (SHA-256)
@@ -80,7 +106,7 @@ class FractalNode {
       // Генерация новой пары ключей
       this.keyPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: 'P-256' },
-        false, // Неэкспортируемый
+        false,
         ['sign', 'verify']
       );
       this.publicKeyStr = await this.exportPublicKey(this.keyPair.publicKey);
@@ -97,8 +123,13 @@ class FractalNode {
 
   async createAccount() {
     try {
-      // Генерация seed-фразы с помощью BIP-39
-      const seedPhrase = bip39.generateMnemonic();
+      if (!this.emojiList) {
+        throw new Error('Список эмодзи не загружен');
+      }
+      // Генерация seed-фразы из 12 случайных эмодзи
+      const seedPhrase = Array.from({ length: 12 }, () => 
+        this.emojiList[Math.floor(Math.random() * this.emojiList.length)]
+      ).join('');
       document.getElementById('new-seed').value = seedPhrase;
       await this.login(seedPhrase);
     } catch (error) {

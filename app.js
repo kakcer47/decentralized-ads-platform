@@ -27,8 +27,8 @@ class FractalNode {
       await this.loadPostCount();
       this.updatePostLimitUI();
       this.connectToSignalServer();
-      this.loadPosts();
-      this.setupEventListeners();
+      await this.loadPosts();
+      this.setupEventListeners(); // Теперь это метод класса
       this.startHeartbeat();
     } catch (error) {
       this.updateModalError(`Ошибка инициализации: ${error.message}`);
@@ -38,15 +38,10 @@ class FractalNode {
 
   async loadEmojiList() {
     try {
-      // Пробуем сначала путь /emoji.json (корень)
-      let response = await fetch('/emoji.json');
+      // Загружаем только из корня, так как /data/emoji.json возвращает 404
+      const response = await fetch('/emoji.json');
       if (!response.ok) {
-        console.warn('Не удалось загрузить /emoji.json, пробуем /data/emoji.json');
-        // Альтернативный путь /data/emoji.json
-        response = await fetch('/data/emoji.json');
-        if (!response.ok) {
-          throw new Error(`Не удалось загрузить emoji.json: ${response.status} ${response.statusText}`);
-        }
+        throw new Error(`Не удалось загрузить emoji.json: ${response.status} ${response.statusText}`);
       }
       const data = await response.json();
       // Фильтруем только эмодзи с status: 2
@@ -164,19 +159,26 @@ class FractalNode {
   async loadKeys(id) {
     const tx = this.db.transaction(['keys'], 'readonly');
     const store = tx.objectStore('keys');
-    const result = await store.get(id);
-    if (result) {
-      return {
-        publicKey: await crypto.subtle.importKey(
-          'raw',
-          new Uint8Array(result.publicKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))),
-          { name: 'ECDSA', namedCurve: 'P-256' },
-          true,
-          ['verify']
-        ),
+    const request = store.get(id);
+    return new Promise((resolve) => {
+      request.onsuccess = () => {
+        const result = request.result;
+        if (result) {
+          resolve({
+            publicKey: crypto.subtle.importKey(
+              'raw',
+              new Uint8Array(result.publicKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))),
+              { name: 'ECDSA', namedCurve: 'P-256' },
+              true,
+              ['verify']
+            ),
+          });
+        } else {
+          resolve(null);
+        }
       };
-    }
-    return null;
+      request.onerror = () => resolve(null);
+    });
   }
 
   connectToSignalServer() {
@@ -373,7 +375,11 @@ class FractalNode {
   async loadPosts() {
     const tx = this.db.transaction(['posts'], 'readonly');
     const store = tx.objectStore('posts');
-    const posts = await store.getAll();
+    const request = store.getAll();
+    const posts = await new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve([]);
+    });
     posts.forEach(post => {
       if (!post.isDraft) {
         this.data_cache.set(post.id, post);
@@ -393,7 +399,11 @@ class FractalNode {
   async loadPostCount() {
     const tx = this.db.transaction(['meta'], 'readonly');
     const store = tx.objectStore('meta');
-    const result = await store.get('postCount');
+    const request = store.get('postCount');
+    const result = await new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    });
     this.postCount = result?.value || 0;
   }
 
@@ -506,7 +516,7 @@ class FractalNode {
         <div class="post-actions">
           <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
           <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
-          <button onclick="promptEdit('${id}')" ${post.author !== this.publicKeyStr ? 'disabled' : ''}>Редактировать</button>
+          <button onclick="node.promptEdit('${id}')" ${post.author !== this.publicKeyStr ? 'disabled' : ''}>Редактировать</button>
         </div>
       `;
       postsDiv.appendChild(postDiv);
@@ -519,7 +529,7 @@ class FractalNode {
           <div class="post-header">Черновик: ${post.note || ''}</div>
           <div>${post.content}</div>
           <div class="post-actions">
-            <button onclick="promptEdit('${id}')">Редактировать</button>
+            <button onclick="node.promptEdit('${id}')">Редактировать</button>
           </div>
         `;
         postsDiv.appendChild(postDiv);
@@ -552,82 +562,83 @@ class FractalNode {
       });
     }
   }
-}
 
-function promptEdit(postId) {
-  const newContent = prompt('Редактировать пост:', node.data_cache.get(postId)?.content || node.draftPosts.get(postId)?.content);
-  if (newContent) {
-    node.editPost(postId, newContent);
+  // Переносим setupEventListeners в класс
+  setupEventListeners() {
+    const modal = document.getElementById('auth-modal');
+    const loginBtn = document.getElementById('login-btn');
+    const closeBtn = document.getElementsByClassName('close')[0];
+    const generateSeedBtn = document.getElementById('generate-seed');
+    const loginSubmitBtn = document.getElementById('login-submit');
+
+    loginBtn.onclick = () => {
+      modal.style.display = 'block';
+      document.getElementById('new-seed').value = '';
+      document.getElementById('seed-input').value = '';
+      document.getElementById('modal-error').textContent = '';
+    };
+
+    closeBtn.onclick = () => {
+      modal.style.display = 'none';
+    };
+
+    window.onclick = (event) => {
+      if (event.target === modal) {
+        modal.style.display = 'none';
+      }
+    };
+
+    generateSeedBtn.onclick = () => {
+      this.createAccount();
+    };
+
+    loginSubmitBtn.onclick = async () => {
+      const seedPhrase = document.getElementById('seed-input').value;
+      await this.login(seedPhrase);
+    };
+
+    document.getElementById('post-btn').addEventListener('click', async () => {
+      const content = document.getElementById('post-input').value;
+      if (content) {
+        await this.postMessage(content);
+        document.getElementById('post-input').value = '';
+      }
+    });
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      const postsDiv = document.getElementById('posts');
+      postsDiv.innerHTML = '';
+      for (const [id, post] of this.data_cache) {
+        if (post.isDraft) continue;
+        if (post.content.toLowerCase().includes(query)) {
+          const postDiv = document.createElement('div');
+          postDiv.className = 'post';
+          postDiv.innerHTML = `
+            <div class="post-header">Автор: ${post.author.slice(0, 8)}... (Уровень: ${post.level})</div>
+            <div>${post.content}</div>
+            <div class="post-actions">
+              <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
+              <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
+              <button onclick="node.promptEdit('${id}')" ${post.author !== this.publicKeyStr ? 'disabled' : ''}>Редактировать</button>
+            </div>
+          `;
+          postsDiv.appendChild(postDiv);
+        }
+      }
+    });
+  }
+
+  // Переносим promptEdit в класс
+  promptEdit(postId) {
+    const newContent = prompt('Редактировать пост:', this.data_cache.get(postId)?.content || this.draftPosts.get(postId)?.content);
+    if (newContent) {
+      this.editPost(postId, newContent);
+    }
   }
 }
 
 const node = new FractalNode(Math.random().toString(36).slice(2));
 node.init();
 
-function setupEventListeners() {
-  const modal = document.getElementById('auth-modal');
-  const loginBtn = document.getElementById('login-btn');
-  const closeBtn = document.getElementsByClassName('close')[0];
-  const generateSeedBtn = document.getElementById('generate-seed');
-  const loginSubmitBtn = document.getElementById('login-submit');
-
-  loginBtn.onclick = () => {
-    modal.style.display = 'block';
-    document.getElementById('new-seed').value = '';
-    document.getElementById('seed-input').value = '';
-    document.getElementById('modal-error').textContent = '';
-  };
-
-  closeBtn.onclick = () => {
-    modal.style.display = 'none';
-  };
-
-  window.onclick = (event) => {
-    if (event.target === modal) {
-      modal.style.display = 'none';
-    }
-  };
-
-  generateSeedBtn.onclick = () => {
-    node.createAccount();
-  };
-
-  loginSubmitBtn.onclick = async () => {
-    const seedPhrase = document.getElementById('seed-input').value;
-    await node.login(seedPhrase);
-  };
-
-  document.getElementById('post-btn').addEventListener('click', async () => {
-    const content = document.getElementById('post-input').value;
-    if (content) {
-      await node.postMessage(content);
-      document.getElementById('post-input').value = '';
-    }
-  });
-
-  document.getElementById('search').addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase();
-    const postsDiv = document.getElementById('posts');
-    postsDiv.innerHTML = '';
-    for (const [id, post] of node.data_cache) {
-      if (post.isDraft) continue;
-      if (post.content.toLowerCase().includes(query)) {
-        const postDiv = document.createElement('div');
-        postDiv.className = 'post';
-        postDiv.innerHTML = `
-          <div class="post-header">Автор: ${post.author.slice(0, 8)}... (Уровень: ${post.level})</div>
-          <div>${post.content}</div>
-          <div class="post-actions">
-            <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
-            <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
-            <button onclick="promptEdit('${id}')" ${post.author !== node.publicKeyStr ? 'disabled' : ''}>Редактировать</button>
-          </div>
-        `;
-        postsDiv.appendChild(postDiv);
-      }
-    }
-  });
-}
-
 window.node = node;
-setupEventListeners();

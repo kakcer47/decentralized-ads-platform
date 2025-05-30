@@ -9,16 +9,18 @@ class FractalNode {
     this.rtcConnections = new Map();
     this.db = null;
     this.keyPair = null;
+    this.publicKeyStr = null;
+    this.publicKeyCache = new Map(); // Кэш публичных ключей: { authorId: CryptoKey }
     this.ws = null;
     this.postCount = 0;
     this.banUntil = 0;
-    this.draftPosts = new Map(); // Posts sent to draft
-    this.subNodes = new Map(); // For recursive hierarchy
+    this.draftPosts = new Map();
+    this.subNodes = new Map();
+    this.isAuthenticated = false;
   }
 
   async init() {
     await this.initDB();
-    await this.generateKeyPair();
     await this.loadPostCount();
     this.updatePostLimitUI();
     this.connectToSignalServer();
@@ -29,7 +31,7 @@ class FractalNode {
 
   async initDB() {
     return new Promise((resolve) => {
-      const request = indexedDB.open('FractalDB', 2);
+      const request = indexedDB.open('FractalDB', 3);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains('posts')) {
@@ -37,6 +39,9 @@ class FractalNode {
         }
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('keys')) {
+          db.createObjectStore('keys', { keyPath: 'id' });
         }
       };
       request.onsuccess = () => {
@@ -46,18 +51,76 @@ class FractalNode {
     });
   }
 
-  async generateKeyPair() {
-    this.keyPair = await crypto.subtle.generateKey(
-      { name: 'ECDSA', namedCurve: 'P-256' },
-      true,
-      ['sign', 'verify']
-    );
-    this.publicKeyStr = await this.exportPublicKey();
+  async login(seedPhrase) {
+    try {
+      // Валидация seed-фразы (упрощённо: проверяем, что это строка из 12 слов)
+      if (!seedPhrase || seedPhrase.split(' ').length !== 12) {
+        throw new Error('Seed-фраза должна состоять из 12 слов');
+      }
+
+      // Генерация ID из seed-фразы (упрощённо: хэш SHA-256)
+      const encoder = new TextEncoder();
+      const seedData = encoder.encode(seedPhrase);
+      const seedHash = await crypto.subtle.digest('SHA-256', seedData);
+      const seedId = Array.from(new Uint8Array(seedHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Проверка существующих ключей в IndexedDB
+      const existingKeys = await this.loadKeys(seedId);
+      if (existingKeys) {
+        this.keyPair = existingKeys;
+        this.publicKeyStr = await this.exportPublicKey(this.keyPair.publicKey);
+        this.id = seedId;
+        this.isAuthenticated = true;
+        this.updateAuthStatus('Авторизован');
+        this.enablePosting();
+        return;
+      }
+
+      // Генерация новой пары ключей (неэкспортируемый приватный ключ)
+      this.keyPair = await crypto.subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        false, // Неэкспортируемый
+        ['sign', 'verify']
+      );
+      this.publicKeyStr = await this.exportPublicKey(this.keyPair.publicKey);
+      this.id = seedId;
+      await this.saveKeys(seedId, this.keyPair);
+      this.isAuthenticated = true;
+      this.updateAuthStatus('Авторизован');
+      this.enablePosting();
+    } catch (error) {
+      this.updateAuthStatus(`Ошибка: ${error.message}`);
+    }
   }
 
-  async exportPublicKey() {
-    const exported = await crypto.subtle.exportKey('raw', this.keyPair.publicKey);
+  async exportPublicKey(publicKey) {
+    const exported = await crypto.subtle.exportKey('raw', publicKey);
     return Array.from(new Uint8Array(exported)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async saveKeys(id, keyPair) {
+    const tx = this.db.transaction(['keys'], 'readwrite');
+    const store = tx.objectStore('keys');
+    await store.put({ id, publicKey: await this.exportPublicKey(keyPair.publicKey) });
+  }
+
+  async loadKeys(id) {
+    const tx = this.db.transaction(['keys'], 'readonly');
+    const store = tx.objectStore('keys');
+    const result = await store.get(id);
+    if (result) {
+      return {
+        publicKey: await crypto.subtle.importKey(
+          'raw',
+          new Uint8Array(result.publicKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))),
+          { name: 'ECDSA', namedCurve: 'P-256' },
+          true,
+          ['verify']
+        ),
+        // Приватный ключ остаётся в Web Crypto API
+      };
+    }
+    return null;
   }
 
   connectToSignalServer() {
@@ -161,16 +224,27 @@ class FractalNode {
   async verifySignature(post) {
     try {
       const { content, signature, author } = post;
+      if (!content || !signature || !author) {
+        throw new Error('Некорректные данные поста');
+      }
+
+      // Кэширование публичного ключа
+      let publicKey = this.publicKeyCache.get(author);
+      if (!publicKey) {
+        const keyData = new Uint8Array(author.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        publicKey = await crypto.subtle.importKey(
+          'raw',
+          keyData,
+          { name: 'ECDSA', namedCurve: 'P-256' },
+          true,
+          ['verify']
+        );
+        this.publicKeyCache.set(author, publicKey);
+      }
+
       const encoder = new TextEncoder();
       const data = encoder.encode(content);
       const sigBytes = new Uint8Array(signature.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-      const publicKey = await crypto.subtle.importKey(
-        'raw',
-        new Uint8Array(author.match(/.{1,2}/g).map(byte => parseInt(byte, 16))),
-        { name: 'ECDSA', namedCurve: 'P-256' },
-        true,
-        ['verify']
-      );
       return await crypto.subtle.verify(
         { name: 'ECDSA', hash: 'SHA-256' },
         publicKey,
@@ -178,14 +252,18 @@ class FractalNode {
         data
       );
     } catch (e) {
-      console.error('Signature verification failed:', e);
+      console.error('Ошибка проверки подписи:', e);
       return false;
     }
   }
 
   async postMessage(content, isDraft = false) {
+    if (!this.isAuthenticated) {
+      alert('Пожалуйста, авторизуйтесь');
+      return;
+    }
     if (this.postCount >= 3) {
-      alert('Достигнут лимит в 3 поста.');
+      alert('Достигнут лимит в 3 поста');
       return;
     }
     if (Date.now() < this.banUntil) {
@@ -203,7 +281,7 @@ class FractalNode {
       likes: 0,
       dislikes: 0,
       comments: [],
-      level: 1, // Post level
+      level: 1,
       violationCount: 0,
       isDraft
     };
@@ -266,6 +344,15 @@ class FractalNode {
 
   updatePostLimitUI() {
     document.getElementById('post-limit').textContent = `Осталось постов: ${3 - this.postCount}`;
+    document.getElementById('post-btn').disabled = !this.isAuthenticated || this.postCount >= 3 || Date.now() < this.banUntil;
+  }
+
+  updateAuthStatus(message) {
+    document.getElementById('auth-status').textContent = message;
+  }
+
+  enablePosting() {
+    document.getElementById('post-input').disabled = false;
     document.getElementById('post-btn').disabled = this.postCount >= 3 || Date.now() < this.banUntil;
   }
 
@@ -275,7 +362,7 @@ class FractalNode {
 
     if (type === 'like') {
       post.likes++;
-      this.trust += 0.1; // Increase trust for quality content
+      this.trust += 0.1;
     } else if (type === 'dislike') {
       post.dislikes++;
       if (post.dislikes >= 5) {
@@ -285,7 +372,7 @@ class FractalNode {
           this.draftPosts.set(postId, { ...post, note: 'Нарушены правила' });
           this.data_cache.delete(postId);
           if (post.violationCount >= 3) {
-            this.banUntil = Date.now() + 60 * 1000; // 1-minute ban
+            this.banUntil = Date.now() + 60 * 1000;
             this.updatePostLimitUI();
           }
         } else {
@@ -356,7 +443,7 @@ class FractalNode {
         <div class="post-actions">
           <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
           <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
-          <button onclick="promptEdit('${id}')">Редактировать</button>
+          <button onclick="promptEdit('${id}')" ${post.author !== this.publicKeyStr ? 'disabled' : ''}>Редактировать</button>
         </div>
       `;
       postsDiv.appendChild(postDiv);
@@ -379,7 +466,7 @@ class FractalNode {
 
   startHeartbeat() {
     setInterval(() => {
-      if (this.connections.size < 3) { // Adaptive topology: connect to up to 3 peers
+      if (this.connections.size < 3) {
         const peerId = `peer-${Math.random().toString(36).slice(2)}`;
         this.connectToPeer(peerId);
       }
@@ -388,7 +475,6 @@ class FractalNode {
   }
 
   optimizeConnections() {
-    // Adaptive topology: prioritize high-trust nodes
     const sortedPeers = Array.from(this.connections).sort((a, b) => {
       const trustA = this.rtcConnections.get(a)?.trust || 0;
       const trustB = this.rtcConnections.get(b)?.trust || 0;
@@ -405,7 +491,6 @@ class FractalNode {
   }
 }
 
-// Global promptEdit function for editing posts
 function promptEdit(postId) {
   const newContent = prompt('Редактировать пост:', node.data_cache.get(postId)?.content || node.draftPosts.get(postId)?.content);
   if (newContent) {
@@ -413,12 +498,15 @@ function promptEdit(postId) {
   }
 }
 
-// Initialize node
 const node = new FractalNode(Math.random().toString(36).slice(2));
 node.init();
 
-// UI logic
 function setupEventListeners() {
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const seedPhrase = document.getElementById('seed-input').value;
+    await node.login(seedPhrase);
+  });
+
   document.getElementById('post-btn').addEventListener('click', async () => {
     const content = document.getElementById('post-input').value;
     if (content) {
@@ -442,18 +530,14 @@ function setupEventListeners() {
           <div class="post-actions">
             <button onclick="node.handleEvaluation({ type: 'like', postId: '${id}', sender: node.id })">Лайк (${post.likes})</button>
             <button onclick="node.handleEvaluation({ type: 'dislike', postId: '${id}', sender: node.id })">Дизлайк (${post.dislikes})</button>
-            <button onclick="promptEdit('${id}')">Редактировать</button>
+            <button onclick="promptEdit('${id}')" ${post.author !== node.publicKeyStr ? 'disabled' : ''}>Редактировать</button>
           </div>
         `;
         postsDiv.appendChild(postDiv);
       }
     }
   });
-
-  document.getElementById('login').addEventListener('click', () => {
-    alert('Вход выполнен (упрощенно). Используется случайный ID.');
-  });
 }
 
-// Expose node for button onclick handlers
 window.node = node;
+setupEventListeners();

@@ -38,21 +38,22 @@ class FractalNode {
 
   async loadEmojiList() {
     try {
-      // Пробуем сначала путь /data/emoji.json
-      let response = await fetch('/data/emoji.json');
+      // Пробуем сначала путь /emoji.json (корень)
+      let response = await fetch('/emoji.json');
       if (!response.ok) {
-        console.warn('Не удалось загрузить /data/emoji.json, пробуем ./emoji.json');
-        // Альтернативный путь, если файл в корне
-        response = await fetch('./emoji.json');
+        console.warn('Не удалось загрузить /emoji.json, пробуем /data/emoji.json');
+        // Альтернативный путь /data/emoji.json
+        response = await fetch('/data/emoji.json');
         if (!response.ok) {
           throw new Error(`Не удалось загрузить emoji.json: ${response.status} ${response.statusText}`);
         }
       }
       const data = await response.json();
-      this.emojiList = Object.keys(data);
-      console.log('Загруженные эмодзи:', this.emojiList);
+      // Фильтруем только эмодзи с status: 2
+      this.emojiList = Object.keys(data).filter(emoji => data[emoji].status === 2);
+      console.log('Загруженные эмодзи с status: 2:', this.emojiList);
       if (this.emojiList.length < 12) {
-        throw new Error('Недостаточно эмодзи в emoji.json (нужно минимум 12)');
+        throw new Error('Недостаточно эмодзи с status: 2 в emoji.json (нужно минимум 12)');
       }
     } catch (error) {
       this.updateModalError(`Ошибка загрузки эмодзи: ${error.message}`);
@@ -88,10 +89,10 @@ class FractalNode {
       if (!this.emojiList) {
         throw new Error('Список эмодзи не загружен');
       }
-      // Валидация seed-фразы: 12 эмодзи, все из emoji.json
+      // Валидация seed-фразы: 12 эмодзи, все из emoji.json с status: 2
       const emojis = seedPhrase.match(/[\p{Emoji}]/gu) || [];
       if (emojis.length !== 12 || emojis.some(e => !this.emojiList.includes(e))) {
-        throw new Error('Seed-фраза должна состоять из 12 эмодзи из emoji.json');
+        throw new Error('Seed-фраза должна состоять из 12 эмодзи с status: 2 из emoji.json');
       }
 
       // Генерация ID из seed-фразы (SHA-256)
@@ -137,7 +138,7 @@ class FractalNode {
       if (!this.emojiList) {
         throw new Error('Список эмодзи не загружен');
       }
-      // Генерация seed-фразы из 12 случайных эмодзи
+      // Генерация seed-фразы из 12 случайных эмодзи с status: 2
       const seedPhrase = Array.from({ length: 12 }, () => 
         this.emojiList[Math.floor(Math.random() * this.emojiList.length)]
       ).join('');

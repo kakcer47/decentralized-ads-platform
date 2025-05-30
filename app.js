@@ -32,21 +32,31 @@ class FractalNode {
       this.startHeartbeat();
     } catch (error) {
       this.updateModalError(`Ошибка инициализации: ${error.message}`);
+      console.error('Ошибка инициализации:', error);
     }
   }
 
   async loadEmojiList() {
     try {
-      const response = await fetch('/data/emoji.json');
+      // Пробуем сначала путь /data/emoji.json
+      let response = await fetch('/data/emoji.json');
       if (!response.ok) {
-        throw new Error('Не удалось загрузить emoji.json');
+        console.warn('Не удалось загрузить /data/emoji.json, пробуем ./emoji.json');
+        // Альтернативный путь, если файл в корне
+        response = await fetch('./emoji.json');
+        if (!response.ok) {
+          throw new Error(`Не удалось загрузить emoji.json: ${response.status} ${response.statusText}`);
+        }
       }
-      this.emojiList = Object.keys(await response.json());
+      const data = await response.json();
+      this.emojiList = Object.keys(data);
+      console.log('Загруженные эмодзи:', this.emojiList);
       if (this.emojiList.length < 12) {
-        throw new Error('Недостаточно эмодзи в emoji.json');
+        throw new Error('Недостаточно эмодзи в emoji.json (нужно минимум 12)');
       }
     } catch (error) {
       this.updateModalError(`Ошибка загрузки эмодзи: ${error.message}`);
+      console.error('Ошибка загрузки emoji.json:', error);
       throw error;
     }
   }
@@ -118,6 +128,7 @@ class FractalNode {
       this.closeModal();
     } catch (error) {
       this.updateModalError(`Ошибка: ${error.message}`);
+      console.error('Ошибка входа:', error);
     }
   }
 
@@ -134,6 +145,7 @@ class FractalNode {
       await this.login(seedPhrase);
     } catch (error) {
       this.updateModalError(`Ошибка при создании аккаунта: ${error.message}`);
+      console.error('Ошибка создания аккаунта:', error);
     }
   }
 

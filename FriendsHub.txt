@@ -374,3 +374,71 @@ index.html
 </html>
 
 src/index.css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Кастомные стили для фрактальной темы */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .fractal-gradient {
+    @apply bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600;
+  }
+  
+  .fractal-card {
+    @apply bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl shadow-lg;
+  }
+  
+  .fractal-button {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95;
+  }
+  
+  .fractal-button-primary {
+    @apply fractal-button bg-primary-500 text-white hover:bg-primary-600 shadow-lg shadow-primary-500/25;
+  }
+  
+  .fractal-button-secondary {
+    @apply fractal-button bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300;
+  }
+  
+  .fractal-input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+  }
+  
+  .node-pulse {
+    animation: node-pulse 2s ease-in-out infinite alternate;
+  }
+  
+  @keyframes node-pulse {
+    0% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+  
+  .network-line {
+    stroke-dasharray: 5,5;
+    animation: network-flow 2s linear infinite;
+  }
+  
+  @keyframes network-flow {
+    to {
+      stroke-dashoffset: -10;
+    }
+  }
+}
+

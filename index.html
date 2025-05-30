@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fractal Ads Platform</title>
+    <meta name="description" content="Децентрализованная платформа объявлений с фрактальной архитектурой" />
+    <meta name="theme-color" content="#6366f1" />
+    <link rel="manifest" href="/manifest.json" />
+    <style>
+      body {
+        background-color: #f9fafb;
+        color: #111827;
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>FriendsHub</h1>
+    <div id="friends-hub-text" class="p-4"></div> <!-- Область для текста -->
+    <script>
+      // Функция для загрузки текста из файла
+      async function loadText() {
+        try {
+          const response = await fetch('FriendsHub.txt');
+          if (!response.ok) {
+            throw new Error('Ошибка при загрузке файла: ' + response.status);
+          }
+          const text = await response.text();
+          document.getElementById('friends-hub-text').innerText = text;
+        } catch (error) {
+          console.error(error);
+          document.getElementById('friends-hub-text').innerText = 'Не удалось загрузить текст.';
+        }
+      }
+
+      // Загружаем текст при загрузке страницы
+      window.onload = loadText;
+    </script>
+  </body>
+</html>

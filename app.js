@@ -43,7 +43,7 @@ class FractalNode {
   }
 
   connectToSignalServer() {
-    this.ws = new WebSocket(`wss://your-signal-server.onrender.com/${this.id}`);
+    this.ws = new WebSocket(`wss://server-by7n.onrender.com/${this.id}`);
     this.ws.onmessage = async (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'offer') {

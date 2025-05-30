@@ -10,7 +10,7 @@ class FractalNode {
     this.db = null;
     this.keyPair = null;
     this.publicKeyStr = null;
-    this.publicKeyCache = new Map(); // Кэш публичных ключей: { authorId: CryptoKey }
+    this.publicKeyCache = new Map(); // Кэш публичных ключей
     this.ws = null;
     this.postCount = 0;
     this.banUntil = 0;
@@ -31,7 +31,7 @@ class FractalNode {
 
   async initDB() {
     return new Promise((resolve) => {
-      const request = indexedDB.open('FractalDB', 3);
+      const request = indexedDB.open('FractalDB', 4);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains('posts')) {
@@ -53,18 +53,18 @@ class FractalNode {
 
   async login(seedPhrase) {
     try {
-      // Валидация seed-фразы (упрощённо: проверяем, что это строка из 12 слов)
-      if (!seedPhrase || seedPhrase.split(' ').length !== 12) {
-        throw new Error('Seed-фраза должна состоять из 12 слов');
+      // Валидация seed-фразы с помощью BIP-39
+      if (!bip39.validateMnemonic(seedPhrase)) {
+        throw new Error('Некорректная seed-фраза');
       }
 
-      // Генерация ID из seed-фразы (упрощённо: хэш SHA-256)
+      // Генерация ID из seed-фразы (SHA-256)
       const encoder = new TextEncoder();
       const seedData = encoder.encode(seedPhrase);
       const seedHash = await crypto.subtle.digest('SHA-256', seedData);
       const seedId = Array.from(new Uint8Array(seedHash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Проверка существующих ключей в IndexedDB
+      // Проверка существующих ключей
       const existingKeys = await this.loadKeys(seedId);
       if (existingKeys) {
         this.keyPair = existingKeys;
@@ -73,10 +73,11 @@ class FractalNode {
         this.isAuthenticated = true;
         this.updateAuthStatus('Авторизован');
         this.enablePosting();
+        this.closeModal();
         return;
       }
 
-      // Генерация новой пары ключей (неэкспортируемый приватный ключ)
+      // Генерация новой пары ключей
       this.keyPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: 'P-256' },
         false, // Неэкспортируемый
@@ -88,8 +89,20 @@ class FractalNode {
       this.isAuthenticated = true;
       this.updateAuthStatus('Авторизован');
       this.enablePosting();
+      this.closeModal();
     } catch (error) {
-      this.updateAuthStatus(`Ошибка: ${error.message}`);
+      this.updateModalError(`Ошибка: ${error.message}`);
+    }
+  }
+
+  async createAccount() {
+    try {
+      // Генерация seed-фразы с помощью BIP-39
+      const seedPhrase = bip39.generateMnemonic();
+      document.getElementById('new-seed').value = seedPhrase;
+      await this.login(seedPhrase);
+    } catch (error) {
+      this.updateModalError(`Ошибка при создании аккаунта: ${error.message}`);
     }
   }
 
@@ -117,7 +130,6 @@ class FractalNode {
           true,
           ['verify']
         ),
-        // Приватный ключ остаётся в Web Crypto API
       };
     }
     return null;
@@ -228,7 +240,6 @@ class FractalNode {
         throw new Error('Некорректные данные поста');
       }
 
-      // Кэширование публичного ключа
       let publicKey = this.publicKeyCache.get(author);
       if (!publicKey) {
         const keyData = new Uint8Array(author.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
@@ -351,9 +362,17 @@ class FractalNode {
     document.getElementById('auth-status').textContent = message;
   }
 
+  updateModalError(message) {
+    document.getElementById('modal-error').textContent = message;
+  }
+
   enablePosting() {
     document.getElementById('post-input').disabled = false;
     document.getElementById('post-btn').disabled = this.postCount >= 3 || Date.now() < this.banUntil;
+  }
+
+  closeModal() {
+    document.getElementById('auth-modal').style.display = 'none';
   }
 
   async handleEvaluation({ type, postId, sender }) {
@@ -502,10 +521,37 @@ const node = new FractalNode(Math.random().toString(36).slice(2));
 node.init();
 
 function setupEventListeners() {
-  document.getElementById('login-btn').addEventListener('click', async () => {
+  const modal = document.getElementById('auth-modal');
+  const loginBtn = document.getElementById('login-btn');
+  const closeBtn = document.getElementsByClassName('close')[0];
+  const generateSeedBtn = document.getElementById('generate-seed');
+  const loginSubmitBtn = document.getElementById('login-submit');
+
+  loginBtn.onclick = () => {
+    modal.style.display = 'block';
+    document.getElementById('new-seed').value = '';
+    document.getElementById('seed-input').value = '';
+    document.getElementById('modal-error').textContent = '';
+  };
+
+  closeBtn.onclick = () => {
+    modal.style.display = 'none';
+  };
+
+  window.onclick = (event) => {
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  };
+
+  generateSeedBtn.onclick = () => {
+    node.createAccount();
+  };
+
+  loginSubmitBtn.onclick = async () => {
     const seedPhrase = document.getElementById('seed-input').value;
     await node.login(seedPhrase);
-  });
+  };
 
   document.getElementById('post-btn').addEventListener('click', async () => {
     const content = document.getElementById('post-input').value;
